@@ -1,0 +1,59 @@
+<html>
+<script>
+WebInspector = {};
+WebInspector.UIString = function(s) { return s; };
+</script>
+<script src="HeapSnapshot.js"></script>
+<script src="JSHeapSnapshot.js"></script>
+<script>
+DummyProgress = function(dispatcher)
+{
+    this._dispatcher = dispatcher;
+}
+
+DummyProgress.prototype = {
+  /**
+   * @param{string} status
+   */
+  updateStatus: function(status)
+  {
+    console.log(WebInspector.UIString(status));
+  },
+
+  /**
+   * @param{string} title
+   * @param{number} value
+   * @param{number} total
+   */
+  updateProgress: function(title, value, total)
+  {
+    var percentValue = ((total ? (value / total) : 0) * 100).toFixed(0);
+    console.log(WebInspector.UIString(title, percentValue));
+  }
+}
+
+var xmlHttp;
+var loaded;
+
+function checkStatus(){
+  if ((xmlHttp.readyState == 4) && (xmlHttp.status == 200 || xmlHttp.status == 0)){
+    loaded = JSON.parse(xmlHttp.responseText);
+    snap = new WebInspector.JSHeapSnapshot(loaded, new DummyProgress());
+  } else {
+    setTimeout(checkStatus, 1000);
+  }
+}
+
+function loadText(){
+  xmlHttp = new XMLHttpRequest();
+  // xmlHttp.onreadystatechange = checkStatus;
+  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+  xmlHttp.send(null);
+  setTimeout(checkStatus, 1000);
+}
+
+</script>
+
+<button onclick="loadText()">Push</button>
+
+</html>
