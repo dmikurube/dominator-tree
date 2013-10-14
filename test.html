@@ -8,7 +8,7 @@ WebInspector.UIString = function(s) { return s; };
 <script>
 DummyProgress = function(dispatcher)
 {
-    this._dispatcher = dispatcher;
+  this._dispatcher = dispatcher;
 }
 
 DummyProgress.prototype = {
@@ -33,12 +33,12 @@ DummyProgress.prototype = {
 }
 
 var xmlHttp;
-var loaded;
+var snapshot;
 
 function checkStatus(){
-  if ((xmlHttp.readyState == 4) && (xmlHttp.status == 200 || xmlHttp.status == 0)){
-    loaded = JSON.parse(xmlHttp.responseText);
-    snap = new WebInspector.JSHeapSnapshot(loaded, new DummyProgress());
+  if ((xmlHttp.readyState == 4) && (xmlHttp.status == 200 || xmlHttp.status == 0)) {
+    var loaded = JSON.parse(xmlHttp.responseText);
+    snapshot = new WebInspector.JSHeapSnapshot(loaded, new DummyProgress());
   } else {
     setTimeout(checkStatus, 1000);
   }
