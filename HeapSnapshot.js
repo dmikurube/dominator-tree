@@ -630,7 +630,7 @@ WebInspector.HeapSnapshot.prototype = {
         this._progress.updateStatus("Calculating node flags\u2026");
         this._calculateFlags();
         this._progress.updateStatus("Calculating distances\u2026");
-        this._calculateDistances();
+        this._maxDistance = this._calculateDistances();
         this._progress.updateStatus("Building postorder index\u2026");
         var result = this._buildPostOrderIndex();
         // Actually it is array that maps node ordinal number to dominator node ordinal number.
@@ -883,6 +883,7 @@ WebInspector.HeapSnapshot.prototype = {
 
         var nodesToVisit = new Uint32Array(this.nodeCount);
         var nodesToVisitLength = 0;
+        var maxDistance = 0;
 
         /**
          * @param {!WebInspector.HeapSnapshotNode} node
@@ -897,14 +898,16 @@ WebInspector.HeapSnapshot.prototype = {
         }
 
         this.forEachRoot(enqueueNode, true);
-        this._bfs(nodesToVisit, nodesToVisitLength, distances);
+        maxDistance = this._bfs(nodesToVisit, nodesToVisitLength, distances);
 
         // bfs for the rest of objects
         nodesToVisitLength = 0;
         this.forEachRoot(enqueueNode);
-        this._bfs(nodesToVisit, nodesToVisitLength, distances);
+        maxDistance = Math.max(
+            maxDistance, this._bfs(nodesToVisit, nodesToVisitLength, distances));
 
         this._nodeDistances = distances;
+        return maxDistance;
     },
 
     /**
@@ -926,11 +929,13 @@ WebInspector.HeapSnapshot.prototype = {
         var edgeWeakType = this._edgeWeakType;
         var noDistance = this._noDistance;
 
+        var maxDistance = 0;
         var index = 0;
         while (index < nodesToVisitLength) {
             var nodeIndex = nodesToVisit[index++]; // shift generates too much garbage.
             var nodeOrdinal = nodeIndex / nodeFieldCount;
             var distance = distances[nodeOrdinal] + 1;
+            maxDistance = Math.max(distance, maxDistance);
             var firstEdgeIndex = firstEdgeIndexes[nodeOrdinal];
             var edgesEnd = firstEdgeIndexes[nodeOrdinal + 1];
             for (var edgeIndex = firstEdgeIndex; edgeIndex < edgesEnd; edgeIndex += edgeFieldsCount) {
@@ -947,6 +952,7 @@ WebInspector.HeapSnapshot.prototype = {
         }
         if (nodesToVisitLength > nodeCount)
             throw new Error("BFS failed. Nodes to visit (" + nodesToVisitLength + ") is more than nodes count (" + nodeCount + ")");
+        return maxDistance;
     },
 
     _buildAggregates: function(filter)
@@ -1852,4 +1858,3 @@ WebInspector.HeapSnapshotNodesProvider.prototype = {
 
     __proto__: WebInspector.HeapSnapshotFilteredOrderedIterator.prototype
 }
-
