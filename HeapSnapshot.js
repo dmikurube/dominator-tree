@@ -1211,8 +1211,12 @@ WebInspector.HeapSnapshot.prototype = {
             }
         }
 
+        var loop_counter = 0;
         var changed = true;
         while (changed) {
+            loop_counter++;
+            if (loop_counter % 1000 == 0)
+              console.log(loop_counter);
             changed = false;
             for (var postOrderIndex = rootPostOrderedIndex - 1; postOrderIndex >= 0; --postOrderIndex) {
                 if (affected[postOrderIndex] === 0)
