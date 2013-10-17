@@ -635,6 +635,7 @@ WebInspector.HeapSnapshot.prototype = {
         var result = this._buildPostOrderIndex();
         // Actually it is array that maps node ordinal number to dominator node ordinal number.
         this._progress.updateStatus("Building dominator tree\u2026");
+        this._dominators_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcs);
         this._dominatorsTree = this._buildDominatorTree(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex);
         this._progress.updateStatus("Calculating retained sizes\u2026");
         this._calculateRetainedSizes(result.postOrderIndex2NodeOrdinal);
@@ -1090,14 +1091,17 @@ WebInspector.HeapSnapshot.prototype = {
         var xRoot = this._find(xIndex, parents);
         var yRoot = this._find(yIndex, parents);
 
+        parents[yRoot] = xRoot;
+        /*
         if (ranks[xRoot] > ranks[yRoot]) {
             parents[yRoot] = xRoot;
         } else if (ranks[xRoot] < ranks[yRoot]) {
             parents[xRoot] = yRoot;
         } else if (xRoot !== yRoot) {
             parents[yRoot] = xRoot;
-            ranks[xRoot] = ranks[xRoot] + 1
+            ranks[xRoot] = ranks[xRoot] + 1;
         }
+        */
     },
 
     // TODO(dmikurube): Make it non-recursive.
@@ -1108,6 +1112,7 @@ WebInspector.HeapSnapshot.prototype = {
         } else {
             parents[index] = this._find(parents[index], parents);
             return parents[index];
+            // return this._find(parents[index], parents);
         }
     },
 
@@ -1379,16 +1384,19 @@ WebInspector.HeapSnapshot.prototype = {
         var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
         var nodeEdgeCountOffset = this._nodeEdgeCountOffset;
 
+        // var nodesCount = postOrderIndex2NodeOrdinal.length;
         var edgeFieldsCount = this._edgeFieldsCount;
         var edgeToNodeOffset = this._edgeToNodeOffset;
         var containmentEdges = this._containmentEdges;
         var containmentEdgesLength = this._containmentEdges.length;
 
-        var noEntry = nodesCount;
-        var dominators = new Uint32Array(nodesCount);
-        for (var i = 0; i < rootPostOrderedIndex; ++i)
-            dominators[i] = noEntry;
-        dominators[rootPostOrderedIndex] = rootPostOrderedIndex;
+        var nodesCount = postOrderIndex2NodeOrdinal.length;
+        if (nodesCount !== nodeCount)
+            throw new Error("nodesCount !== nodeCount");
+        var rootPostOrderedIndex = nodesCount - 1;
+
+        var noEntry = nodeCount;
+        var dominators = new Uint32Array(nodeCount);
 
         var contractParents = new Uint32Array(nodeCount);
         var contractRanks = new Uint32Array(nodeCount);
@@ -1398,58 +1406,86 @@ WebInspector.HeapSnapshot.prototype = {
         var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
 
-        for (var postOrderIndex = rootPostOrderedIndex - 1; postOrderIndex >= 0; --postOrderIndex) {
-            // Bottom-up order.
-            _out[postOrderIndex] = [];  // TODO(dmikurube): To be a linked list.
-            _in[postOrderIndex] = [];  // TODO(dmikurube): To be a linked list.
-            this._makeSet(postOrderIndex, contractParents, contractRanks);
-            added[postOrderIndex] = 0;
-            same[postOrderIndex] = [ postOrderIndex ];  // TODO(dmikurube): To be a linked list.
-            for (var arcsIndex = 0; arcsIndex < arcs.length; arcsIndex += 2) {
-                var x = arcs[arcsIndex];
-                var y = arcs[arcsIndex + 1];
-                var findX = this._find(x, contractParents, contractRanks);
-                var findX = this._find(y, contractParents, contractRanks);
+        for (var i = 0; i < nodeCount; ++i) {
+            dominators[i] = noEntry;
+            _out[i] = [];  // TODO(dmikurube): To be a linked list.
+            _in[i] = [];  // TODO(dmikurube): To be a linked list.
+            this._makeSet(i, contractParents, contractRanks);
+            added[i] = 0;
+            same[i] = [ i ];  // TODO(dmikurube): To be a linked list.
+        }
+        dominators[rootPostOrderedIndex] = rootPostOrderedIndex;
+
+        for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {  // Bottom-up order
+            console.log(postOrderIndex);
+            /*
+            // If dominator of the entry has already been set to root,
+            // then it can't propagate any further.
+            if (dominators[postOrderIndex] === rootPostOrderedIndex)
+                continue;
+            */
+            nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
+            // _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a linked list.
+            // _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a linked list.
+            // this._makeSet(nodeOrdinal, contractParents, contractRanks);
+            // added[nodeOrdinal] = 0;
+            // same[nodeOrdinal] = [ nodeOrdinal ];  // TODO(dmikurube): To be a linked list.
+            for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
+                var x = arcs[nodeOrdinal][arcsIndex];
+                var y = arcs[nodeOrdinal][arcsIndex + 1];
+                var findX = this._find(x, contractParents);
+                var findY = this._find(y, contractParents);
                 _out[findX].push(y);
                 _in[findY].push(x);
                 ++added[findY];
             }
-            while (_out.length > 0) {
-                var y = _out[postOrderIndex].pop();
-                var v = this._find(y, contractParents, contractRanks);
-                if (v !== postOrderIndex) {
+            console.log(" >> a");
+            while (_out[nodeOrdinal].length > 0) {
+                var y = _out[nodeOrdinal].pop();
+                var v = this._find(y, contractParents);
+                if (v !== nodeOrdinal) {
                     --total[v];
                     --added[v];
                 }
                 if (total[v] === 0) {
-                    var x = this._find(parents[x], contractParents, contractRanks);
-                    if (postOrderIndex === x) {
+                    var x = this._find(parents[x], contractParents);
+                    if (nodeOrdinal === x) {
                         for (var w = 0; w < same[v].length; ++w)
-                            dominators[same[v][w]] = postOrderIndex;
+                            dominators[same[v][w]] = nodeOrdinal;
                     } else {
                         same[x] = same[x].concat(same[v]);
                     }
-                    this._union(parents[v], v);
+                    this._union(parents[v], v, contractParents, contractRanks);
                     _out[x] = _out[x].concat(_out[v]);
                 }
             }
-            while (_in.length > 0) {
-                var z = _in[postOrderIndex].pop();
-                var v = this._find(z, contractParents, contractRanks);
-                while (v !== postOrderIndex) {
-                    same[postOrderIndex] = same[postOrderIndex].concat(same[v]);
-                    var x = this._find(parents[v]);
-                    this._union(parents[v], v);
+            console.log(" >> b");
+            while (_in[nodeOrdinal].length > 0) {
+                console.log("hoge");
+                var z = _in[nodeOrdinal].pop();
+                var v = this._find(z, contractParents);
+                while (v !== nodeOrdinal) {
+                    same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
+                    var x = this._find(parents[v], contractParents);
+                    this._union(parents[v], v, contractParents, contractRanks);
                     _in[x] = _in[x].concat(_in[v]);
                     _out[x] = _out[x].concat(_out[v]);
                     total[x] += total[v];
                     added[x] += added[v];
+                    console.log("fuga");
+                    console.log("u == " + nodeOrdinal);
+                    console.log("v == " + v);
+                    console.log("x == " + x);
+                    console.log(_in[x].length);
+                    console.log(_out[x].length);
                     v = x;
                 }
             }
-            total[postOrderIndex] -= added[postOrderIndex];
-            added[postOrderIndex] = 0;
+            console.log(" >> c");
+            total[nodeOrdinal] -= added[nodeOrdinal];
+            added[nodeOrdinal] = 0;
         }
+        return dominators;
     },
 
     _calculateRetainedSizes: function(postOrderIndex2NodeOrdinal)
