@@ -1079,6 +1079,38 @@ WebInspector.HeapSnapshot.prototype = {
                 });
     },
 
+    _makeSet: function(index, parents, ranks)
+    {
+        parents[index] = index;
+        ranks[index] = 0;
+    },
+
+    _union: function(xIndex, yIndex, parents, ranks)
+    {
+        var xRoot = this._find(xIndex, parents);
+        var yRoot = this._find(yIndex, parents);
+
+        if (ranks[xRoot] > ranks[yRoot]) {
+            parents[yRoot] = xRoot;
+        } else if (ranks[xRoot] < ranks[yRoot]) {
+            parents[xRoot] = yRoot;
+        } else if (xRoot !== yRoot) {
+            parents[yRoot] = xRoot;
+            ranks[xRoot] = ranks[xRoot] + 1
+        }
+    },
+
+    // TODO(dmikurube): Make it non-recursive.
+    _find: function(index, parents)
+    {
+        if (parents[index] === index) {
+            return index;
+        } else {
+            parents[index] = this._find(parents[index], parents);
+            return parents[index];
+        }
+    },
+
     _buildPostOrderIndex: function()
     {
         var nodeFieldCount = this._nodeFieldCount;
@@ -1101,20 +1133,30 @@ WebInspector.HeapSnapshot.prototype = {
         var nodesToVisit = new Uint32Array(nodeCount);
         var postOrderIndex2NodeOrdinal = new Uint32Array(nodeCount);
         var nodeOrdinal2PostOrderIndex = new Uint32Array(nodeCount);
+        var ncaParents = new Uint32Array(nodeCount);
+        var ncaRanks = new Uint32Array(nodeCount);
         var painted = new Uint8Array(nodeCount);
+        var parents = new Uint32Array(nodeCount);
+        var total = new Uint32Array(nodeCount);
+        var arcs = new Array(nodeCount);
         var nodesToVisitLength = 0;
         var postOrderIndex = 0;
         var grey = 1;
         var black = 2;
 
+        for (var i = 0; i < nodeCount; ++i)
+            arcs[i] = [];
+
         nodesToVisit[nodesToVisitLength++] = rootNodeOrdinal;
         painted[rootNodeOrdinal] = grey;
+        parents[rootNodeOrdinal] = rootNodeOrdinal;  // No parent.
 
         while (nodesToVisitLength) {
             var nodeOrdinal = nodesToVisit[nodesToVisitLength - 1];
 
             if (painted[nodeOrdinal] === grey) {
                 painted[nodeOrdinal] = black;
+                this._makeSet(nodeOrdinal, ncaParents, ncaRanks);
                 var nodeFlag = !flags || (flags[nodeOrdinal] & flag);
                 var beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
                 var endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
@@ -1128,12 +1170,29 @@ WebInspector.HeapSnapshot.prototype = {
                     // Otherwise the dominators for the objects that also were retained by debugger would be affected.
                     if (nodeOrdinal !== rootNodeOrdinal && childNodeFlag && !nodeFlag)
                         continue;
+                    ++total[childNodeOrdinal];
                     if (!painted[childNodeOrdinal]) {
                         painted[childNodeOrdinal] = grey;
+                        parents[childNodeOrdinal] = nodeOrdinal;
                         nodesToVisit[nodesToVisitLength++] = childNodeOrdinal;
                     }
                 }
             } else {
+                for (var edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
+                    if (nodeOrdinal !== rootNodeOrdinal && containmentEdges[edgeIndex + edgeTypeOffset] === edgeShortcutType)
+                        continue;
+                    var childNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
+                    var childNodeOrdinal = childNodeIndex / nodeFieldCount;
+                    var childNodeFlag = !flags || (flags[childNodeOrdinal] & flag);
+                    // We are skipping the edges from non-page-owned nodes to page-owned nodes.
+                    // Otherwise the dominators for the objects that also were retained by debugger would be affected.
+                    if (nodeOrdinal !== rootNodeOrdinal && childNodeFlag && !nodeFlag)
+                        continue;
+                    nca = this._find(childNodeOrdinal, ncaParents);
+                    arcs[nca].push(nodeOrdinal);
+                    arcs[nca].push(childNodeOrdinal);
+                }
+                this._union(parents[nodeOrdinal], nodeOrdinal, ncaParents, ncaRanks);
                 nodeOrdinal2PostOrderIndex[nodeOrdinal] = postOrderIndex;
                 postOrderIndex2NodeOrdinal[postOrderIndex++] = nodeOrdinal;
                 --nodesToVisitLength;
@@ -1156,7 +1215,13 @@ WebInspector.HeapSnapshot.prototype = {
             }
         }
 
-        return {postOrderIndex2NodeOrdinal: postOrderIndex2NodeOrdinal, nodeOrdinal2PostOrderIndex: nodeOrdinal2PostOrderIndex};
+        return {
+            postOrderIndex2NodeOrdinal: postOrderIndex2NodeOrdinal,
+            nodeOrdinal2PostOrderIndex: nodeOrdinal2PostOrderIndex,
+            parents: parents,
+            total: total,
+            arcs: arcs
+        };
     },
 
     // The algorithm is based on the article:
@@ -1283,6 +1348,108 @@ WebInspector.HeapSnapshot.prototype = {
             dominatorsTree[nodeOrdinal] = postOrderIndex2NodeOrdinal[dominators[postOrderIndex]];
         }
         return dominatorsTree;
+    },
+
+    /*
+    _addToSet: function(heads, tails, key, value)
+    {
+        // TODO(dmikurube): Add +1
+        if (tails[value] !== 0)
+            throw new Error("Value " + value + " is already used.");
+        tails[value] = heads[key];
+        heads[index] = value;
+    },
+    */
+
+    // The algorithm is based on the article (Algorithm GD, Version 2):
+    // W. Fraczak, L. Georgiadis, A. Miller and R. E. Tarjan "Finding Dominators via Disjoint Set Union"
+    // http://arxiv.org/pdf/1310.2118v1.pdf
+    /**
+     * @param {Array.<number>} postOrderIndex2NodeOrdinal
+     * @param {Array.<number>} nodeOrdinal2PostOrderIndex
+     * @param {Array.<number>} parents
+     * @param {Array.<number>} total
+     * @param {Array.<Array.<number>>} arcs
+     */
+    _buildDominatorTree_GD2: function(postOrderIndex2NodeOrdinal, nodeOrdinal2PostOrderIndex, parents, total, arcs)
+    {
+        var nodeFieldCount = this._nodeFieldCount;
+        var nodes = this._nodes;
+        var nodeCount = this.nodeCount;
+        var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
+        var nodeEdgeCountOffset = this._nodeEdgeCountOffset;
+
+        var edgeFieldsCount = this._edgeFieldsCount;
+        var edgeToNodeOffset = this._edgeToNodeOffset;
+        var containmentEdges = this._containmentEdges;
+        var containmentEdgesLength = this._containmentEdges.length;
+
+        var noEntry = nodesCount;
+        var dominators = new Uint32Array(nodesCount);
+        for (var i = 0; i < rootPostOrderedIndex; ++i)
+            dominators[i] = noEntry;
+        dominators[rootPostOrderedIndex] = rootPostOrderedIndex;
+
+        var contractParents = new Uint32Array(nodeCount);
+        var contractRanks = new Uint32Array(nodeCount);
+        var added = new Uint32Array(nodeCount);  // Initialized to 0.
+        var same = new Array(nodeCount);
+
+        var _out = new Array(nodeCount);
+        var _in = new Array(nodeCount);
+
+        for (var postOrderIndex = rootPostOrderedIndex - 1; postOrderIndex >= 0; --postOrderIndex) {
+            // Bottom-up order.
+            _out[postOrderIndex] = [];  // TODO(dmikurube): To be a linked list.
+            _in[postOrderIndex] = [];  // TODO(dmikurube): To be a linked list.
+            this._makeSet(postOrderIndex, contractParents, contractRanks);
+            added[postOrderIndex] = 0;
+            same[postOrderIndex] = [ postOrderIndex ];  // TODO(dmikurube): To be a linked list.
+            for (var arcsIndex = 0; arcsIndex < arcs.length; arcsIndex += 2) {
+                var x = arcs[arcsIndex];
+                var y = arcs[arcsIndex + 1];
+                var findX = this._find(x, contractParents, contractRanks);
+                var findX = this._find(y, contractParents, contractRanks);
+                _out[findX].push(y);
+                _in[findY].push(x);
+                ++added[findY];
+            }
+            while (_out.length > 0) {
+                var y = _out[postOrderIndex].pop();
+                var v = this._find(y, contractParents, contractRanks);
+                if (v !== postOrderIndex) {
+                    --total[v];
+                    --added[v];
+                }
+                if (total[v] === 0) {
+                    var x = this._find(parents[x], contractParents, contractRanks);
+                    if (postOrderIndex === x) {
+                        for (var w = 0; w < same[v].length; ++w)
+                            dominators[same[v][w]] = postOrderIndex;
+                    } else {
+                        same[x] = same[x].concat(same[v]);
+                    }
+                    this._union(parents[v], v);
+                    _out[x] = _out[x].concat(_out[v]);
+                }
+            }
+            while (_in.length > 0) {
+                var z = _in[postOrderIndex].pop();
+                var v = this._find(z, contractParents, contractRanks);
+                while (v !== postOrderIndex) {
+                    same[postOrderIndex] = same[postOrderIndex].concat(same[v]);
+                    var x = this._find(parents[v]);
+                    this._union(parents[v], v);
+                    _in[x] = _in[x].concat(_in[v]);
+                    _out[x] = _out[x].concat(_out[v]);
+                    total[x] += total[v];
+                    added[x] += added[v];
+                    v = x;
+                }
+            }
+            total[postOrderIndex] -= added[postOrderIndex];
+            added[postOrderIndex] = 0;
+        }
     },
 
     _calculateRetainedSizes: function(postOrderIndex2NodeOrdinal)
