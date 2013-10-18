@@ -1088,6 +1088,7 @@ WebInspector.HeapSnapshot.prototype = {
 
     // This union always must merge to x, the first argument.
     // We don't use union by rank.
+    // Use a name dictionary to lookup x while using union by rank.
     _union: function(xIndex, yIndex, parents, stack)
     {
         var xRoot = this._find(xIndex, parents, stack);
