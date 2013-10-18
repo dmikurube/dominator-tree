@@ -1,4 +1,5 @@
 <html>
+<!-- Open it with --allow-file-access-from-files -->
 <script>
 WebInspector = {};
 WebInspector.UIString = function(string, vararg) {
@@ -51,9 +52,8 @@ function checkStatus(){
 
 function loadText(){
   xmlHttp = new XMLHttpRequest();
-  // xmlHttp.onreadystatechange = checkStatus;
 // xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/blank.heapsnapshot" + '?' + (new Date().getTime()), true);
+  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mini.heapsnapshot" + '?' + (new Date().getTime()), true);
   xmlHttp.send(null);
