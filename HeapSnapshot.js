@@ -1101,7 +1101,7 @@ WebInspector.HeapSnapshot.prototype = {
 
         stack[height] = index;
         while (parents[stack[height]] !== stack[height]) {
-            parent = parents[stack[height]];
+            var parent = parents[stack[height]];
             ++height;
             stack[height] = parent;
         }
@@ -1198,7 +1198,7 @@ WebInspector.HeapSnapshot.prototype = {
                     // Otherwise the dominators for the objects that also were retained by debugger would be affected.
                     if (nodeOrdinal !== rootNodeOrdinal && childNodeFlag && !nodeFlag)
                         continue;
-                    nca = this._find(childNodeOrdinal, ncaParents, ncaStack);
+                    var nca = this._find(childNodeOrdinal, ncaParents, ncaStack);
                     arcs[nca].push(nodeOrdinal);
                     arcs[nca].push(childNodeOrdinal);
                 }
@@ -1398,7 +1398,7 @@ WebInspector.HeapSnapshot.prototype = {
             // Bottom-up order
             if (postOrderIndex % 10000 == 0)
                 this._progress.updateProgress("Building dominator tree. %d\%", postOrderIndex, nodeCount);
-            nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
+            var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
 
             // TODO(dmikurube): Can be initialized above at first.
             _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
