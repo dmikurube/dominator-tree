@@ -1,7 +1,12 @@
 <html>
 <script>
 WebInspector = {};
-WebInspector.UIString = function(s) { return s; };
+WebInspector.UIString = function(string, vararg) {
+    if (vararg)
+        return string + " : " + vararg;
+    else
+        return string;
+}
 </script>
 <script src="HeapSnapshot.js"></script>
 <script src="JSHeapSnapshot.js"></script>
@@ -47,7 +52,10 @@ function checkStatus(){
 function loadText(){
   xmlHttp = new XMLHttpRequest();
   // xmlHttp.onreadystatechange = checkStatus;
-  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+// xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/blank.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mini.heapsnapshot" + '?' + (new Date().getTime()), true);
   xmlHttp.send(null);
   setTimeout(checkStatus, 1000);
 }
