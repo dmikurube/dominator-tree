@@ -1081,22 +1081,35 @@ WebInspector.HeapSnapshot.prototype = {
                 });
     },
 
-    _makeSet: function(index, parents)
+    _makeSet: function(index, parents, ranks, dict)
     {
         parents[index] = index;
+        ranks[index] = 0;
+        dict[index] = index;
     },
 
     // This union always must merge to x, the first argument.
     // We don't use union by rank.
     // Use a name dictionary to lookup x while using union by rank.
-    _union: function(xIndex, yIndex, parents, stack)
+    _union: function(xIndex, yIndex, parents, ranks, dict, stack)
     {
-        var xRoot = this._find(xIndex, parents, stack);
-        var yRoot = this._find(yIndex, parents, stack);
+        var xRoot = this._find(xIndex, parents, dict, stack);
+        var yRoot = this._find(yIndex, parents, dict, stack);
         parents[yRoot] = xRoot;
+        /*
+        if (ranks[xRoot] > ranks[yRoot]) {
+            parents[yRoot] = xRoot;
+        } else if (ranks[xRoot] < ranks[yRoot]) {
+            dict[yRoot] = xRoot; // TODO(dmikurube: Not working. Fix it.
+            parents[xRoot] = yRoot;
+        } else if (xRoot !== yRoot) {
+            parents[yRoot] = xRoot;
+            ranks[xRoot] = ranks[xRoot] + 1;
+        }
+        */
     },
 
-    _find: function(index, parents, stack)
+    _find: function(index, parents, dict, stack)
     {
         var height = 0;
 
@@ -1116,6 +1129,13 @@ WebInspector.HeapSnapshot.prototype = {
             parents[stack[height]] = top;
             --height;
         }
+
+        /*
+        if (dict[top])
+            return dict[top];
+        else
+            return top;
+        */
         return top;
     },
 
@@ -1142,6 +1162,8 @@ WebInspector.HeapSnapshot.prototype = {
         var postOrderIndex2NodeOrdinal = new Uint32Array(nodeCount);
         var nodeOrdinal2PostOrderIndex = new Uint32Array(nodeCount);
         var ncaParents = new Uint32Array(nodeCount);
+        var ncaRanks = new Uint32Array(nodeCount);
+        var ncaDicts = new Uint32Array(nodeCount);
         var ncaStack = new Uint32Array(nodeCount);
         var painted = new Uint8Array(nodeCount);
         var parents = new Uint32Array(nodeCount);
@@ -1164,7 +1186,7 @@ WebInspector.HeapSnapshot.prototype = {
 
             if (painted[nodeOrdinal] === grey) {
                 painted[nodeOrdinal] = black;
-                this._makeSet(nodeOrdinal, ncaParents);
+                this._makeSet(nodeOrdinal, ncaParents, ncaRanks, ncaDicts);
                 var nodeFlag = !flags || (flags[nodeOrdinal] & flag);
                 var beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
                 var endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
@@ -1199,11 +1221,11 @@ WebInspector.HeapSnapshot.prototype = {
                     // Otherwise the dominators for the objects that also were retained by debugger would be affected.
                     if (nodeOrdinal !== rootNodeOrdinal && childNodeFlag && !nodeFlag)
                         continue;
-                    var nca = this._find(childNodeOrdinal, ncaParents, ncaStack);
+                    var nca = this._find(childNodeOrdinal, ncaParents, ncaDicts, ncaStack);
                     arcs[nca].push(nodeOrdinal);
                     arcs[nca].push(childNodeOrdinal);
                 }
-                this._union(parents[nodeOrdinal], nodeOrdinal, ncaParents, ncaStack);
+                this._union(parents[nodeOrdinal], nodeOrdinal, ncaParents, ncaRanks, ncaDicts, ncaStack);
                 nodeOrdinal2PostOrderIndex[nodeOrdinal] = postOrderIndex;
                 postOrderIndex2NodeOrdinal[postOrderIndex++] = nodeOrdinal;
                 --nodesToVisitLength;
@@ -1383,6 +1405,8 @@ WebInspector.HeapSnapshot.prototype = {
 
         var dominators = new Uint32Array(nodeCount);
         var contractParents = new Uint32Array(nodeCount);
+        var contractRanks = new Uint32Array(nodeCount);
+        var contractDicts = new Uint32Array(nodeCount);
         var contractStack = new Uint32Array(nodeCount);
         var added = new Uint32Array(nodeCount);
         var same = new Array(nodeCount);
@@ -1404,45 +1428,46 @@ WebInspector.HeapSnapshot.prototype = {
             // TODO(dmikurube): Can be initialized above at first.
             _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
-            this._makeSet(nodeOrdinal, contractParents);
+            this._makeSet(nodeOrdinal, contractParents,
+                          contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
             same[nodeOrdinal] = [ nodeOrdinal ];  // TODO(dmikurube): To be a kind of linked list for speed.
 
             for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
                 var x = arcs[nodeOrdinal][arcsIndex];
                 var y = arcs[nodeOrdinal][arcsIndex + 1];
-                var findX = this._find(x, contractParents, contractStack);
-                var findY = this._find(y, contractParents, contractStack);
+                var findX = this._find(x, contractParents, contractDicts, contractStack);
+                var findY = this._find(y, contractParents, contractDicts, contractStack);
                 _out[findX].push(y);
                 _in[findY].push(x);
                 ++added[findY];
             }
             while (_out[nodeOrdinal].length > 0) {
                 var y = _out[nodeOrdinal].pop();
-                var v = this._find(y, contractParents, contractStack);
+                var v = this._find(y, contractParents, contractDicts, contractStack);
                 if (v !== nodeOrdinal) {
                     --total[v];
                     --added[v];
                 }
                 if (total[v] === 0) {
-                    var x = this._find(parents[v], contractParents, contractStack);
+                    var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     if (nodeOrdinal === x) {
                         for (var w = 0; w < same[v].length; ++w)
                             dominators[same[v][w]] = nodeOrdinal;
                     } else {
                         same[x] = same[x].concat(same[v]);
                     }
-                    this._union(parents[v], v, contractParents, contractStack);
+                    this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _out[x] = _out[x].concat(_out[v]);
                 }
             }
             while (_in[nodeOrdinal].length > 0) {
                 var z = _in[nodeOrdinal].pop();
-                var v = this._find(z, contractParents, contractStack);
+                var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
                     same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
-                    var x = this._find(parents[v], contractParents, contractStack);
-                    this._union(parents[v], v, contractParents, contractStack);
+                    var x = this._find(parents[v], contractParents, contractDicts, contractStack);
+                    this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _in[x] = _in[x].concat(_in[v]);
                     _out[x] = _out[x].concat(_out[v]);
                     total[x] += total[v];
