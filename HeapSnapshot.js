@@ -1450,8 +1450,8 @@ WebInspector.HeapSnapshot.prototype = {
 
         for (var i = 0; i < nodeCount; ++i) {
             dominatorsTree[i] = noEntry;
-            outHeads[i] = undefined;
-            inHeads[i] = undefined;
+            outHeads[i] = null;
+            inHeads[i] = null;
         }
 
         // Singly-linked circular lists.
@@ -1469,8 +1469,8 @@ WebInspector.HeapSnapshot.prototype = {
             // TODO(dmikurube): Can be initialized above at first.
             _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
-            outHeads[nodeOrdinal] = undefined;  // Empty.
-            inHeads[nodeOrdinal] = undefined;  // Empty.
+            outHeads[nodeOrdinal] = null;  // Empty.
+            inHeads[nodeOrdinal] = null;  // Empty.
             this._makeSet(nodeOrdinal, contractParents,
                           contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
@@ -1479,9 +1479,9 @@ WebInspector.HeapSnapshot.prototype = {
 
             edgeOrdinal = arcsHeads[nodeOrdinal];
             if (edgeOrdinal === edgeCount)
-                edgeOrdinal = undefined;
+                edgeOrdinal = null;
             // for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
-            while (edgeOrdinal /* undefined */) {
+            while (edgeOrdinal != null) {
                 console.log(".");
                 var x = fromNodes[edgeOrdinal];
                 var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
@@ -1498,7 +1498,7 @@ WebInspector.HeapSnapshot.prototype = {
                 console.log(outHeads);
                 console.log(outNext);
                 _out[findX].push(y);
-                if (outHeads[findX] /* undefined */) {
+                if (outHeads[findX] != null) {
                     tmp = outNext[outHeads[findX]];
                     outNext[outHeads[findX]] = edgeOrdinal;
                     outNext[edgeOrdinal] = tmp;
@@ -1509,7 +1509,7 @@ WebInspector.HeapSnapshot.prototype = {
                 console.log("end");
 
                 _in[findY].push(x);
-                if (inHeads[findY] /* undefined */) {
+                if (inHeads[findY] != null) {
                     tmp = inNext[inHeads[findY]];
                     inNext[inHeads[findY]] = edgeOrdinal;
                     inNext[edgeOrdinal] = tmp;
@@ -1519,12 +1519,12 @@ WebInspector.HeapSnapshot.prototype = {
                 ++added[findY];
                 edgeOrdinal = arcsNext[edgeOrdinal];
                 if (edgeOrdinal === edgeCount)
-                    edgeOrdinal = undefined;
+                    edgeOrdinal = null;
             }
 
             // edgeOrdinal = outHeads[nodeOrdinal];
             while (_out[nodeOrdinal].length > 0) {
-            // while (edgeOrdinal /* undefined */) {
+            // while (edgeOrdinal != null) {
                 console.log(edgeOrdinal);
                 console.log(outNext);
                 /*
@@ -1539,8 +1539,8 @@ WebInspector.HeapSnapshot.prototype = {
 
                 // Pop.
                 if (edgeOrdinal === outNext[edgeOrdinal]) {
-                    edgeOrdinal = undefined;
-                    outHeads[nodeOrdinal] = undefined;
+                    edgeOrdinal = null;
+                    outHeads[nodeOrdinal] = null;
                     console.log("xxx");
                     console.log(outHeads);
                     console.log(outNext);
@@ -1552,7 +1552,7 @@ WebInspector.HeapSnapshot.prototype = {
                     console.log(outHeads);
                     console.log(outNext);
                     outNext[edgeOrdinal] = outNext[outNext[edgeOrdinal]];
-                    outNext[outNext[edgeOrdinal]] = undefined;
+                    outNext[outNext[edgeOrdinal]] = null;
                     console.log(outHeads);
                     console.log(outNext);
                     console.log("zzz");
@@ -1589,11 +1589,11 @@ WebInspector.HeapSnapshot.prototype = {
                     }
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _out[x] = _out[x].concat(_out[v]);
-                    //if (outHeads[x] /* undefined */ && outHeads[v] /* undefined */) {
+                    //if (outHeads[x] != null && outHeads[v] != null) {
                     //    var tmpNode = outNext[outHeads[x]];
                     //    outNext[outHeads[x]] = outNext[outHeads[v]];
                     //    outNext[outHeads[v]] = tmpNode;
-                    //} else if (outHeads[v] /* undefined */) {
+                    //} else if (outHeads[v] != null) {
                     //    outHeads[x] = outHeads[v];
                     //}
                 }
@@ -1623,11 +1623,11 @@ WebInspector.HeapSnapshot.prototype = {
                     _in[x] = _in[x].concat(_in[v]);
 
                     _out[x] = _out[x].concat(_out[v]);
-                    //if (outHeads[x] /* undefined */ && outHeads[v] /* undefined */) {
+                    //if (outHeads[x] != null && outHeads[v] != null) {
                     //    var tmpNode = outNext[outHeads[x]];
                     //    outNext[outHeads[x]] = outNext[outHeads[v]];
                     //    outNext[outHeads[v]] = tmpNode;
-                    //} else if (outHeads[v] /* undefined */) {
+                    //} else if (outHeads[v] != null) {
                     //    outHeads[x] = outHeads[v];
                     //}
 
