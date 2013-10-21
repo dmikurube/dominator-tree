@@ -1441,11 +1441,21 @@ WebInspector.HeapSnapshot.prototype = {
         var sameNext = new Uint32Array(nodeCount);
         var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
+        var outHeads = new Uint32Array(nodeCount);
+        var outNext = new Uint32Array(edgeCount);
+        var inHeads = new Uint32Array(nodeCount);
+        var inNext = new Uint32Array(edgeCount);
 
         var noEntry = nodeCount;
 
         for (var i = 0; i < nodeCount; ++i)
             dominatorsTree[i] = noEntry;
+
+        // Singly-linked circular lists.
+        for (var i = 0; i < edgeCount; ++i) {
+            outNext[i] = i;
+            inNext[i] = i;
+        }
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
             // Traverse in a bottom-up order.
@@ -1456,6 +1466,8 @@ WebInspector.HeapSnapshot.prototype = {
             // TODO(dmikurube): Can be initialized above at first.
             _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
+            outHeads[nodeOrdinal] = edgeCount;  // Empty.
+            inHeads[nodeOrdinal] = edgeCount;  // Empty.
             this._makeSet(nodeOrdinal, contractParents,
                           contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
@@ -1469,13 +1481,30 @@ WebInspector.HeapSnapshot.prototype = {
                 var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
                 var findX = this._find(x, contractParents, contractDicts, contractStack);
                 var findY = this._find(y, contractParents, contractDicts, contractStack);
+                var tmp;
+
                 _out[findX].push(y);
+                tmp = outNext[outHeads[findX]];
+                outNext[outHeads[findX]] = edgeOrdinal;
+                outNext[edgeOrdinal] = tmp;
+                outHeads[findX] = edgeOrdinal;
+
                 _in[findY].push(x);
+                tmp = inNext[inHeads[findY]];
+                inNext[inHeads[findY]] = edgeOrdinal;
+                inNext[edgeOrdinal] = tmp;
+                inHeads[findY] = edgeOrdinal;
+
                 ++added[findY];
                 edgeOrdinal = arcsNext[edgeOrdinal];
             }
+
+            // edgeOrdinal = outHeads[nodeOrdinal];
             while (_out[nodeOrdinal].length > 0) {
+            // while (edgeOrdinal != edgeCount) {
                 var y = _out[nodeOrdinal].pop();
+                // var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
+                // edgeOrdinal = outHeads[nodeOrdinal] = outNext[edgeOrdinal];  // Pop.
                 var v = this._find(y, contractParents, contractDicts, contractStack);
                 if (v !== nodeOrdinal) {
                     --total[v];
