@@ -1430,7 +1430,7 @@ WebInspector.HeapSnapshot.prototype = {
             dominatorsTree[i] = noEntry;
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
-            // Bottom-up order
+            // Traverse in a bottom-up order.
             if (postOrderIndex % 10000 == 0)
                 this._progress.updateProgress("Building dominator tree. %d\%", postOrderIndex, nodeCount);
             var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
