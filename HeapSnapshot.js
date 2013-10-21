@@ -635,7 +635,7 @@ WebInspector.HeapSnapshot.prototype = {
         var result = this._buildPostOrderIndex();
         // Actually it is array that maps node ordinal number to dominator node ordinal number.
         this._progress.updateStatus("Building dominator tree GD\u2026");
-        this._dominators_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcs);
+        this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcs);
         this._progress.updateStatus("Building dominator tree\u2026");
         this._dominatorsTree = this._buildDominatorTree(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex);
         this._progress.updateStatus("Calculating retained sizes\u2026");
@@ -739,6 +739,7 @@ WebInspector.HeapSnapshot.prototype = {
         delete this._firstDominatedNodeIndex;
         delete this._nodeDistances;
         delete this._dominatorsTree;
+        delete this._dominatorsTree_GD2;
     },
 
     _allNodes: function()
@@ -1402,8 +1403,9 @@ WebInspector.HeapSnapshot.prototype = {
         var containmentEdges = this._containmentEdges;
         var containmentEdgesLength = this._containmentEdges.length;
         var rootPostOrderedIndex = nodeCount - 1;
+        var rootNodeOrdinal = postOrderIndex2NodeOrdinal[rootPostOrderedIndex];
 
-        var dominators = new Uint32Array(nodeCount);
+        var dominatorsTree = new Uint32Array(nodeCount);
         var contractParents = new Uint32Array(nodeCount);
         var contractRanks = new Uint32Array(nodeCount);
         var contractDicts = new Uint32Array(nodeCount);
@@ -1416,8 +1418,7 @@ WebInspector.HeapSnapshot.prototype = {
         var noEntry = nodeCount;
 
         for (var i = 0; i < nodeCount; ++i)
-            dominators[i] = noEntry;
-        dominators[rootPostOrderedIndex] = rootPostOrderedIndex;
+            dominatorsTree[i] = noEntry;
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
             // Bottom-up order
@@ -1453,7 +1454,7 @@ WebInspector.HeapSnapshot.prototype = {
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     if (nodeOrdinal === x) {
                         for (var w = 0; w < same[v].length; ++w)
-                            dominators[same[v][w]] = nodeOrdinal;
+                            dominatorsTree[same[v][w]] = nodeOrdinal;
                     } else {
                         same[x] = same[x].concat(same[v]);
                     }
@@ -1479,17 +1480,13 @@ WebInspector.HeapSnapshot.prototype = {
             added[nodeOrdinal] = 0;
         }
 
-        // TODO(dmikurube): Remove this debug output.
-        var chr = ['R', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
-                   'K', 'L', 'M', 'N', ];
-        var str = "";
-        for (var i = 0; i < nodeCount; ++i)
-            str += " | " + chr[i] + "=>" + chr[dominators[i]];
-        console.log(str);
+        // TODO(dmikurube): Make sure that the root's dominator is the root itself.
+        // It's the same behavior as the original _buildDominatorTree by Cooper's algorithm.
+        dominatorsTree[rootNodeOrdinal] = rootNodeOrdinal;
 
         // TODO(dmikurube): Aligh output with the original buildDominatorTree.
-        // dominators[i] means the immediate dominator of i.
-        return dominators;
+        // dominatorsTree[i] means the immediate dominator of i.
+        return dominatorsTree;
     },
 
     _calculateRetainedSizes: function(postOrderIndex2NodeOrdinal)

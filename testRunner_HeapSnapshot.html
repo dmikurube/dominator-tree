@@ -42,9 +42,43 @@ var xmlHttp;
 var snapshot;
 
 function checkStatus(){
-  if ((xmlHttp.readyState == 4) && (xmlHttp.status == 200 || xmlHttp.status == 0)) {
+  if ((xmlHttp.readyState === 4) && (xmlHttp.status === 200 || xmlHttp.status === 0)) {
     var loaded = JSON.parse(xmlHttp.responseText);
     snapshot = new WebInspector.JSHeapSnapshot(loaded, new DummyProgress());
+    match = true;
+    if (snapshot._dominatorsTree.length !== snapshot._dominatorsTree_GD2.length) {
+      match = false;
+    } else {
+      for (var i = 0; i < snapshot._dominatorsTree.length; ++i) {
+        if (snapshot._dominatorsTree[i] !== snapshot._dominatorsTree_GD2[i]) {
+          match = false;
+          break;
+        }
+      }
+    }
+
+    // Check the results.
+    var chr = ['R', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+    if (match) {
+      console.log("OK");
+      console.log(snapshot._dominatorsTree);
+      var str = "";
+      for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
+        str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree[i]];
+      console.log(str);
+    } else {
+      console.log("NG");
+      console.log(snapshot._dominatorsTree);
+      var str = "";
+      for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
+        str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree[i]];
+      console.log(str);
+      console.log(snapshot._dominatorsTree_GD2);
+      var str = "";
+      for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
+        str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree_GD2[i]];
+      console.log(str);
+    }
   } else {
     setTimeout(checkStatus, 1000);
   }
