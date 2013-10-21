@@ -1484,24 +1484,20 @@ WebInspector.HeapSnapshot.prototype = {
                 var tmp;
 
                 _out[findX].push(edgeOrdinal);
-                /*
                 if (outHeads[findX] != null) {
                     tmp = outNext[outHeads[findX]];
                     outNext[outHeads[findX]] = edgeOrdinal;
                     outNext[edgeOrdinal] = tmp;
                 }
                 outHeads[findX] = edgeOrdinal;
-                */
 
                 _in[findY].push(edgeOrdinal);
-                /*
                 if (inHeads[findY] != null) {
                     tmp = inNext[inHeads[findY]];
                     inNext[inHeads[findY]] = edgeOrdinal;
                     inNext[edgeOrdinal] = tmp;
                 }
                 inHeads[findY] = edgeOrdinal;
-                */
 
                 ++added[findY];
                 edgeOrdinal = arcsNext[edgeOrdinal];
