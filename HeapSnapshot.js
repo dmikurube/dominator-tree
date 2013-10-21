@@ -1432,7 +1432,6 @@ WebInspector.HeapSnapshot.prototype = {
         var contractDicts = new Uint32Array(nodeCount);
         var contractStack = new Uint32Array(nodeCount);
         var added = new Uint32Array(nodeCount);
-        // var same = new Array(nodeCount);
         var sameNext = new Uint32Array(nodeCount);
         var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
@@ -1466,10 +1465,8 @@ WebInspector.HeapSnapshot.prototype = {
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             outHeads[nodeOrdinal] = null;  // Empty.
             inHeads[nodeOrdinal] = null;  // Empty.
-            this._makeSet(nodeOrdinal, contractParents,
-                          contractRanks, contractDicts);
+            this._makeSet(nodeOrdinal, contractParents, contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
-            // same[nodeOrdinal] = [nodeOrdinal];
             sameNext[nodeOrdinal] = nodeOrdinal;
 
             edgeOrdinal = arcsHeads[nodeOrdinal];
@@ -1511,8 +1508,15 @@ WebInspector.HeapSnapshot.prototype = {
             // edgeOrdinal = outHeads[nodeOrdinal];
             while (_out[nodeOrdinal].length > 0) {
             // while (edgeOrdinal != null) {
-                var y = containmentEdges[_out[nodeOrdinal].pop() * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
-                // var y = containmentEdges[outNext[edgeOrdinal] * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
+                var pop = _out[nodeOrdinal].pop();
+                // var pop = outNext[edgeOrdinal];
+                var y = containmentEdges[pop * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
+
+                if (outNext[pop] == null)
+                    throw new Error("Must not happen (1).");
+                outNext[pop] = null;
+                console.log("Out:");
+                console.log(outNext);
 
                 // Pop.
                 /*
@@ -1535,8 +1539,6 @@ WebInspector.HeapSnapshot.prototype = {
                 if (total[v] === 0) {
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     if (nodeOrdinal === x) {
-                        // for (var w = 0; w < same[v].length; ++w)
-                        //     dominatorsTree[same[v][w]] = nodeOrdinal;
                         dominatorsTree[v] = nodeOrdinal;
                         var cursor = sameNext[v];
                         while (cursor !== v) {
@@ -1544,7 +1546,6 @@ WebInspector.HeapSnapshot.prototype = {
                             cursor = sameNext[cursor];
                         }
                     } else {
-                        // same[x] = same[x].concat(same[v]);
                         // Merging two circular linked lists. Assuming the two circular lists
                         // don't conflict. (See the referred article p.11.)
                         var tmpNode = sameNext[x];
@@ -1566,10 +1567,18 @@ WebInspector.HeapSnapshot.prototype = {
             }
 
             while (_in[nodeOrdinal].length > 0) {
-                var z = fromNodes[_in[nodeOrdinal].pop()];
+                var pop = _in[nodeOrdinal].pop();
+                // var pop = inNext[edgeOrdinal];
+                var z = fromNodes[pop];
+
+                if (inNext[pop] == null)
+                    throw new Error("Must not happen (2).");
+                inNext[pop] = null;
+                console.log("In:");
+                console.log(inNext);
+
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
-                    // same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
                     // Merging two circular linked lists. Assuming the two circular lists
                     // don't conflict. (See the referred article p.11-12.)
                     var tmpNode = sameNext[nodeOrdinal];
@@ -1582,7 +1591,6 @@ WebInspector.HeapSnapshot.prototype = {
                     var tmpNode;
 
                     _in[x] = _in[x].concat(_in[v]);
-
                     _out[x] = _out[x].concat(_out[v]);
                     /*
                     if (outHeads[x] != null && outHeads[v] != null) {
