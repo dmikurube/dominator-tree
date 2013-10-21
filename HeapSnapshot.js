@@ -1433,7 +1433,7 @@ WebInspector.HeapSnapshot.prototype = {
         var contractStack = new Uint32Array(nodeCount);
         var added = new Uint32Array(nodeCount);
         var sameNext = new Uint32Array(nodeCount);
-        var _out = new Array(nodeCount);
+        // var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
         var outHeads = new Array(nodeCount);
         var outNext = new Array(edgeCount);
@@ -1465,7 +1465,7 @@ WebInspector.HeapSnapshot.prototype = {
             var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
 
             // TODO(dmikurube): Can be initialized above at first.
-            _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
+            // _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             outHeads[nodeOrdinal] = null;  // Empty.
             inHeads[nodeOrdinal] = null;  // Empty.
@@ -1483,13 +1483,15 @@ WebInspector.HeapSnapshot.prototype = {
                 var findY = this._find(y, contractParents, contractDicts, contractStack);
                 var tmp;
 
-                _out[findX].push(edgeOrdinal);
+                // _out[findX].push(edgeOrdinal);
                 if (outHeads[findX] != null) {
                     tmp = outNext[outHeads[findX]];
                     outNext[outHeads[findX]] = edgeOrdinal;
                     outNext[edgeOrdinal] = tmp;
                 }
                 outHeads[findX] = edgeOrdinal;
+                if (outNext[edgeOrdinal] == null)
+                    throw new Error("Must not happen (3)");
 
                 _in[findY].push(edgeOrdinal);
                 if (inHeads[findY] != null) {
@@ -1498,6 +1500,8 @@ WebInspector.HeapSnapshot.prototype = {
                     inNext[edgeOrdinal] = tmp;
                 }
                 inHeads[findY] = edgeOrdinal;
+                if (inNext[edgeOrdinal] == null)
+                    throw new Error("Must not happen (4)");
 
                 ++added[findY];
                 edgeOrdinal = arcsNext[edgeOrdinal];
@@ -1505,21 +1509,18 @@ WebInspector.HeapSnapshot.prototype = {
                     edgeOrdinal = null;
             }
 
-            // edgeOrdinal = outHeads[nodeOrdinal];
-            while (_out[nodeOrdinal].length > 0) {
-            // while (edgeOrdinal != null) {
-                var pop = _out[nodeOrdinal].pop();
-                // var pop = outNext[edgeOrdinal];
+            edgeOrdinal = outHeads[nodeOrdinal];
+            // while (_out[nodeOrdinal].length > 0) {
+            while (edgeOrdinal != null) {
+                // var pop = _out[nodeOrdinal].pop();
+                var pop = outNext[edgeOrdinal];
                 var y = containmentEdges[pop * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
 
                 if (outVerify[pop] == null)
                     throw new Error("Must not happen (1).");
                 outVerify[pop] = null;
-                console.log("Out:");
-                console.log(outVerify);
 
                 // Pop.
-                /*
                 if (edgeOrdinal === outNext[edgeOrdinal]) {
                     outNext[edgeOrdinal] = null;
                     edgeOrdinal = null;
@@ -1529,7 +1530,6 @@ WebInspector.HeapSnapshot.prototype = {
                     outNext[edgeOrdinal] = outNext[outNext[edgeOrdinal]];
                     outNext[tmpNode] = null;
                 }
-                */
 
                 var v = this._find(y, contractParents, contractDicts, contractStack);
                 if (v !== nodeOrdinal) {
@@ -1553,16 +1553,14 @@ WebInspector.HeapSnapshot.prototype = {
                         sameNext[v] = tmpNode;
                     }
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
-                    _out[x] = _out[x].concat(_out[v]);
-                    /*
+                    // _out[x] = _out[x].concat(_out[v]);
                     if (outHeads[x] != null && outHeads[v] != null) {
                         var tmpNode = outNext[outHeads[x]];
                         outNext[outHeads[x]] = outNext[outHeads[v]];
                         outNext[outHeads[v]] = tmpNode;
                     } else if (outHeads[v] != null) {
-                        outHeads[x] = outHeads[v];
+                        edgeOrdinal = outHeads[x] = outHeads[v];
                     }
-                    */
                 }
             }
 
@@ -1574,8 +1572,6 @@ WebInspector.HeapSnapshot.prototype = {
                 if (inVerify[pop] == null)
                     throw new Error("Must not happen (2).");
                 inVerify[pop] = null;
-                console.log("In:");
-                console.log(inVerify);
 
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
@@ -1591,16 +1587,14 @@ WebInspector.HeapSnapshot.prototype = {
                     var tmpNode;
 
                     _in[x] = _in[x].concat(_in[v]);
-                    _out[x] = _out[x].concat(_out[v]);
-                    /*
+                    // _out[x] = _out[x].concat(_out[v]);
                     if (outHeads[x] != null && outHeads[v] != null) {
                         var tmpNode = outNext[outHeads[x]];
                         outNext[outHeads[x]] = outNext[outHeads[v]];
                         outNext[outHeads[v]] = tmpNode;
                     } else if (outHeads[v] != null) {
-                        outHeads[x] = outHeads[v];
+                        edgeOrdinal = outHeads[x] = outHeads[v];
                     }
-                    */
 
                     total[x] += total[v];
                     added[x] += added[v];
