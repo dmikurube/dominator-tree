@@ -1437,8 +1437,10 @@ WebInspector.HeapSnapshot.prototype = {
         var _in = new Array(nodeCount);
         var outHeads = new Array(nodeCount);
         var outNext = new Array(edgeCount);
+        var outVerify = new Array(edgeCount);
         var inHeads = new Array(nodeCount);
         var inNext = new Array(edgeCount);
+        var inVerify = new Array(edgeCount);
 
         var noEntry = nodeCount;
 
@@ -1452,6 +1454,8 @@ WebInspector.HeapSnapshot.prototype = {
         for (var i = 0; i < edgeCount; ++i) {
             outNext[i] = i;
             inNext[i] = i;
+            outVerify[i] = i;
+            inVerify[i] = i;
         }
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
@@ -1512,11 +1516,11 @@ WebInspector.HeapSnapshot.prototype = {
                 // var pop = outNext[edgeOrdinal];
                 var y = containmentEdges[pop * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
 
-                if (outNext[pop] == null)
+                if (outVerify[pop] == null)
                     throw new Error("Must not happen (1).");
-                outNext[pop] = null;
+                outVerify[pop] = null;
                 console.log("Out:");
-                console.log(outNext);
+                console.log(outVerify);
 
                 // Pop.
                 /*
@@ -1571,11 +1575,11 @@ WebInspector.HeapSnapshot.prototype = {
                 // var pop = inNext[edgeOrdinal];
                 var z = fromNodes[pop];
 
-                if (inNext[pop] == null)
+                if (inVerify[pop] == null)
                     throw new Error("Must not happen (2).");
-                inNext[pop] = null;
+                inVerify[pop] = null;
                 console.log("In:");
-                console.log(inNext);
+                console.log(inVerify);
 
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
