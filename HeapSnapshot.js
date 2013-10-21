@@ -1419,7 +1419,8 @@ WebInspector.HeapSnapshot.prototype = {
         var contractDicts = new Uint32Array(nodeCount);
         var contractStack = new Uint32Array(nodeCount);
         var added = new Uint32Array(nodeCount);
-        var same = new Array(nodeCount);
+        // var same = new Array(nodeCount);
+        var sameNext = new Uint32Array(nodeCount);
         var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
 
@@ -1440,7 +1441,8 @@ WebInspector.HeapSnapshot.prototype = {
             this._makeSet(nodeOrdinal, contractParents,
                           contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
-            same[nodeOrdinal] = [ nodeOrdinal ];  // TODO(dmikurube): To be a kind of linked list for speed.
+            // same[nodeOrdinal] = [nodeOrdinal];
+            sameNext[nodeOrdinal] = nodeOrdinal;
 
             for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
                 var x = arcs[nodeOrdinal][arcsIndex];
@@ -1461,10 +1463,21 @@ WebInspector.HeapSnapshot.prototype = {
                 if (total[v] === 0) {
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     if (nodeOrdinal === x) {
-                        for (var w = 0; w < same[v].length; ++w)
-                            dominatorsTree[same[v][w]] = nodeOrdinal;
+                        // for (var w = 0; w < same[v].length; ++w)
+                        //     dominatorsTree[same[v][w]] = nodeOrdinal;
+                        dominatorsTree[v] = nodeOrdinal;
+                        var cursor = sameNext[v];
+                        while (cursor != v) {
+                            dominatorsTree[cursor] = nodeOrdinal;
+                            cursor = sameNext[cursor];
+                        }
                     } else {
-                        same[x] = same[x].concat(same[v]);
+                        // same[x] = same[x].concat(same[v]);
+                        // Merging two circular linked lists. Assuming the two circular lists
+                        // don't conflict. (See the referred article p.11.)
+                        var tmpNode = sameNext[x];
+                        sameNext[x] = sameNext[v];
+                        sameNext[v] = tmpNode;
                     }
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _out[x] = _out[x].concat(_out[v]);
@@ -1474,7 +1487,13 @@ WebInspector.HeapSnapshot.prototype = {
                 var z = _in[nodeOrdinal].pop();
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
-                    same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
+                    // same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
+                    // Merging two circular linked lists. Assuming the two circular lists
+                    // don't conflict. (See the referred article p.11-12.)
+                    var tmpNode = sameNext[nodeOrdinal];
+                    sameNext[nodeOrdinal] = sameNext[v];
+                    sameNext[v] = tmpNode;
+
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _in[x] = _in[x].concat(_in[v]);
