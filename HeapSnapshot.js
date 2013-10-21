@@ -635,7 +635,7 @@ WebInspector.HeapSnapshot.prototype = {
         var result = this._buildPostOrderIndex();
         // Actually it is array that maps node ordinal number to dominator node ordinal number.
         this._progress.updateStatus("Building dominator tree GD\u2026");
-        this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcs);
+        this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcsHeads, result.arcsNext);
         this._progress.updateStatus("Building dominator tree\u2026");
         this._dominatorsTree = this._buildDominatorTree(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex);
         this._progress.updateStatus("Calculating retained sizes\u2026");
@@ -649,14 +649,20 @@ WebInspector.HeapSnapshot.prototype = {
     {
         var nodes = this._nodes;
         var nodeCount = this.nodeCount;
+        var edgeCount = this._edgeCount;
         var firstEdgeIndexes = this._firstEdgeIndexes = new Uint32Array(nodeCount + 1);
+        var fromNodes = this._fromNodes = new Uint32Array(edgeCount);
         var nodeFieldCount = this._nodeFieldCount;
         var edgeFieldsCount = this._edgeFieldsCount;
         var nodeEdgeCountOffset = this._nodeEdgeCountOffset;
         firstEdgeIndexes[nodeCount] = this._containmentEdges.length;
         for (var nodeOrdinal = 0, edgeIndex = 0; nodeOrdinal < nodeCount; ++nodeOrdinal) {
             firstEdgeIndexes[nodeOrdinal] = edgeIndex;
-            edgeIndex += nodes[nodeOrdinal * nodeFieldCount + nodeEdgeCountOffset] * edgeFieldsCount;
+            var numEdgesFromNodeOrdinal = nodes[nodeOrdinal * nodeFieldCount + nodeEdgeCountOffset];
+            var edgeOrdinal = edgeIndex / edgeFieldsCount;
+            for (var i = 0; i < numEdgesFromNodeOrdinal; ++i)
+                fromNodes[edgeOrdinal + i] = nodeOrdinal;
+            edgeIndex += numEdgesFromNodeOrdinal * edgeFieldsCount;
         }
     },
 
@@ -1155,6 +1161,7 @@ WebInspector.HeapSnapshot.prototype = {
         var nodeCount = this.nodeCount;
         var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
 
+        var edgeCount = this._edgeCount;
         var edgeFieldsCount = this._edgeFieldsCount;
         var edgeTypeOffset = this._edgeTypeOffset;
         var edgeToNodeOffset = this._edgeToNodeOffset;
@@ -1177,14 +1184,18 @@ WebInspector.HeapSnapshot.prototype = {
         var painted = new Uint8Array(nodeCount);
         var parents = new Uint32Array(nodeCount);
         var total = new Uint32Array(nodeCount);
-        var arcs = new Array(nodeCount);
+        // var arcs = new Array(nodeCount);
+        var arcsHeads = new Array(nodeCount);
+        var arcsNext = new Uint32Array(edgeCount);
         var nodesToVisitLength = 0;
         var postOrderIndex = 0;
         var grey = 1;
         var black = 2;
 
-        for (var i = 0; i < nodeCount; ++i)
-            arcs[i] = [];
+        for (var i = 0; i < nodeCount; ++i) {
+            // arcs[i] = [];
+            arcsHeads[i] = edgeCount;
+        }
 
         nodesToVisit[nodesToVisitLength++] = rootNodeOrdinal;
         painted[rootNodeOrdinal] = grey;
@@ -1231,8 +1242,11 @@ WebInspector.HeapSnapshot.prototype = {
                     if (nodeOrdinal !== rootNodeOrdinal && childNodeFlag && !nodeFlag)
                         continue;
                     var nca = this._find(childNodeOrdinal, ncaParents, ncaDicts, ncaStack);
-                    arcs[nca].push(nodeOrdinal);
-                    arcs[nca].push(childNodeOrdinal);
+                    var edgeOrdinal = edgeIndex / edgeFieldsCount;
+                    // arcs[nca].push(nodeOrdinal);
+                    // arcs[nca].push(childNodeOrdinal);
+                    arcsNext[edgeOrdinal] = arcsHeads[nca];
+                    arcsHeads[nca] = edgeOrdinal;
                 }
                 this._union(parents[nodeOrdinal], nodeOrdinal, ncaParents, ncaRanks, ncaDicts, ncaStack);
                 nodeOrdinal2PostOrderIndex[nodeOrdinal] = postOrderIndex;
@@ -1262,7 +1276,8 @@ WebInspector.HeapSnapshot.prototype = {
             nodeOrdinal2PostOrderIndex: nodeOrdinal2PostOrderIndex,
             parents: parents,
             total: total,
-            arcs: arcs
+            arcsHeads: arcsHeads,
+            arcsNext: arcsNext
         };
     },
 
@@ -1396,9 +1411,10 @@ WebInspector.HeapSnapshot.prototype = {
      * @param {Array.<number>} nodeOrdinal2PostOrderIndex
      * @param {Array.<number>} parents
      * @param {Array.<number>} total
-     * @param {Array.<Array.<number>>} arcs
+     * @param {Array.<number>} arcsHeads
+     * @param {Array.<number>} arcsNext
      */
-    _buildDominatorTree_GD2: function(postOrderIndex2NodeOrdinal, nodeOrdinal2PostOrderIndex, parents, total, arcs)
+    _buildDominatorTree_GD2: function(postOrderIndex2NodeOrdinal, nodeOrdinal2PostOrderIndex, parents, total, arcsHeads, arcsNext)
     {
         var nodeFieldCount = this._nodeFieldCount;
         var nodes = this._nodes;
@@ -1406,12 +1422,14 @@ WebInspector.HeapSnapshot.prototype = {
         var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
         var nodeEdgeCountOffset = this._nodeEdgeCountOffset;
 
+        var edgeCount = this._edgeCount;
         var edgeFieldsCount = this._edgeFieldsCount;
         var edgeToNodeOffset = this._edgeToNodeOffset;
         var containmentEdges = this._containmentEdges;
         var containmentEdgesLength = this._containmentEdges.length;
         var rootPostOrderedIndex = nodeCount - 1;
         var rootNodeOrdinal = postOrderIndex2NodeOrdinal[rootPostOrderedIndex];
+        var fromNodes = this._fromNodes;
 
         var dominatorsTree = new Uint32Array(nodeCount);
         var contractParents = new Uint32Array(nodeCount);
@@ -1444,14 +1462,17 @@ WebInspector.HeapSnapshot.prototype = {
             // same[nodeOrdinal] = [nodeOrdinal];
             sameNext[nodeOrdinal] = nodeOrdinal;
 
-            for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
-                var x = arcs[nodeOrdinal][arcsIndex];
-                var y = arcs[nodeOrdinal][arcsIndex + 1];
+            edgeOrdinal = arcsHeads[nodeOrdinal];
+            // for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
+            while (edgeOrdinal != edgeCount) {
+                var x = fromNodes[edgeOrdinal];
+                var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
                 var findX = this._find(x, contractParents, contractDicts, contractStack);
                 var findY = this._find(y, contractParents, contractDicts, contractStack);
                 _out[findX].push(y);
                 _in[findY].push(x);
                 ++added[findY];
+                edgeOrdinal = arcsNext[edgeOrdinal];
             }
             while (_out[nodeOrdinal].length > 0) {
                 var y = _out[nodeOrdinal].pop();
