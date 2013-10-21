@@ -1184,7 +1184,6 @@ WebInspector.HeapSnapshot.prototype = {
         var painted = new Uint8Array(nodeCount);
         var parents = new Uint32Array(nodeCount);
         var total = new Uint32Array(nodeCount);
-        // var arcs = new Array(nodeCount);
         var arcsHeads = new Array(nodeCount);
         var arcsNext = new Uint32Array(edgeCount);
         var nodesToVisitLength = 0;
@@ -1192,10 +1191,8 @@ WebInspector.HeapSnapshot.prototype = {
         var grey = 1;
         var black = 2;
 
-        for (var i = 0; i < nodeCount; ++i) {
-            // arcs[i] = [];
+        for (var i = 0; i < nodeCount; ++i)
             arcsHeads[i] = edgeCount;
-        }
 
         nodesToVisit[nodesToVisitLength++] = rootNodeOrdinal;
         painted[rootNodeOrdinal] = grey;
@@ -1243,8 +1240,6 @@ WebInspector.HeapSnapshot.prototype = {
                         continue;
                     var nca = this._find(childNodeOrdinal, ncaParents, ncaDicts, ncaStack);
                     var edgeOrdinal = edgeIndex / edgeFieldsCount;
-                    // arcs[nca].push(nodeOrdinal);
-                    // arcs[nca].push(childNodeOrdinal);
                     arcsNext[edgeOrdinal] = arcsHeads[nca];
                     arcsHeads[nca] = edgeOrdinal;
                 }
@@ -1480,7 +1475,6 @@ WebInspector.HeapSnapshot.prototype = {
             edgeOrdinal = arcsHeads[nodeOrdinal];
             if (edgeOrdinal === edgeCount)
                 edgeOrdinal = null;
-            // for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
             while (edgeOrdinal != null) {
                 var x = fromNodes[edgeOrdinal];
                 var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
@@ -1498,7 +1492,7 @@ WebInspector.HeapSnapshot.prototype = {
                 outHeads[findX] = edgeOrdinal;
                 */
 
-                _in[findY].push(y);
+                _in[findY].push(edgeOrdinal);
                 /*
                 if (inHeads[findY] != null) {
                     tmp = inNext[inHeads[findY]];
@@ -1572,7 +1566,7 @@ WebInspector.HeapSnapshot.prototype = {
             }
 
             while (_in[nodeOrdinal].length > 0) {
-                var z = _in[nodeOrdinal].pop();
+                var z = fromNodes[_in[nodeOrdinal].pop()];
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
                     // same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
