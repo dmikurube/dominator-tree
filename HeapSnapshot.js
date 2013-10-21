@@ -1441,15 +1441,18 @@ WebInspector.HeapSnapshot.prototype = {
         var sameNext = new Uint32Array(nodeCount);
         var _out = new Array(nodeCount);
         var _in = new Array(nodeCount);
-        var outHeads = new Uint32Array(nodeCount);
-        var outNext = new Uint32Array(edgeCount);
-        var inHeads = new Uint32Array(nodeCount);
-        var inNext = new Uint32Array(edgeCount);
+        var outHeads = new Array(nodeCount);
+        var outNext = new Array(edgeCount);
+        var inHeads = new Array(nodeCount);
+        var inNext = new Array(edgeCount);
 
         var noEntry = nodeCount;
 
-        for (var i = 0; i < nodeCount; ++i)
+        for (var i = 0; i < nodeCount; ++i) {
             dominatorsTree[i] = noEntry;
+            outHeads[i] = undefined;
+            inHeads[i] = undefined;
+        }
 
         // Singly-linked circular lists.
         for (var i = 0; i < edgeCount; ++i) {
@@ -1459,15 +1462,15 @@ WebInspector.HeapSnapshot.prototype = {
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
             // Traverse in a bottom-up order.
-            if (postOrderIndex % 10000 == 0)
+            if (postOrderIndex % 10000 === 0)
                 this._progress.updateProgress("Building dominator tree. %d\%", postOrderIndex, nodeCount);
             var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
 
             // TODO(dmikurube): Can be initialized above at first.
             _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
             _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
-            outHeads[nodeOrdinal] = edgeCount;  // Empty.
-            inHeads[nodeOrdinal] = edgeCount;  // Empty.
+            outHeads[nodeOrdinal] = undefined;  // Empty.
+            inHeads[nodeOrdinal] = undefined;  // Empty.
             this._makeSet(nodeOrdinal, contractParents,
                           contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
@@ -1475,36 +1478,91 @@ WebInspector.HeapSnapshot.prototype = {
             sameNext[nodeOrdinal] = nodeOrdinal;
 
             edgeOrdinal = arcsHeads[nodeOrdinal];
+            if (edgeOrdinal === edgeCount)
+                edgeOrdinal = undefined;
             // for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
-            while (edgeOrdinal != edgeCount) {
+            while (edgeOrdinal /* undefined */) {
+                console.log(".");
                 var x = fromNodes[edgeOrdinal];
                 var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
                 var findX = this._find(x, contractParents, contractDicts, contractStack);
                 var findY = this._find(y, contractParents, contractDicts, contractStack);
                 var tmp;
 
+                console.log("begin");
+                console.log(findX);
+                console.log(findY);
+                console.log(edgeOrdinal);
+                console.log(outHeads[findX]);
+                console.log(outNext[outHeads[findX]]);
+                console.log(outHeads);
+                console.log(outNext);
                 _out[findX].push(y);
-                tmp = outNext[outHeads[findX]];
-                outNext[outHeads[findX]] = edgeOrdinal;
-                outNext[edgeOrdinal] = tmp;
+                if (outHeads[findX] /* undefined */) {
+                    tmp = outNext[outHeads[findX]];
+                    outNext[outHeads[findX]] = edgeOrdinal;
+                    outNext[edgeOrdinal] = tmp;
+                }
                 outHeads[findX] = edgeOrdinal;
+                console.log(outHeads);
+                console.log(outNext);
+                console.log("end");
 
                 _in[findY].push(x);
-                tmp = inNext[inHeads[findY]];
-                inNext[inHeads[findY]] = edgeOrdinal;
-                inNext[edgeOrdinal] = tmp;
+                if (inHeads[findY] /* undefined */) {
+                    tmp = inNext[inHeads[findY]];
+                    inNext[inHeads[findY]] = edgeOrdinal;
+                    inNext[edgeOrdinal] = tmp;
+                }
                 inHeads[findY] = edgeOrdinal;
 
                 ++added[findY];
                 edgeOrdinal = arcsNext[edgeOrdinal];
+                if (edgeOrdinal === edgeCount)
+                    edgeOrdinal = undefined;
             }
 
             // edgeOrdinal = outHeads[nodeOrdinal];
             while (_out[nodeOrdinal].length > 0) {
-            // while (edgeOrdinal != edgeCount) {
+            // while (edgeOrdinal /* undefined */) {
+                console.log(edgeOrdinal);
+                console.log(outNext);
+                /*
+                console.log(edgeOrdinal);
+                console.log(outNext[edgeOrdinal]);
+                console.log(outNext[outNext[edgeOrdinal]]);
+                console.log(outNext);
+                */
                 var y = _out[nodeOrdinal].pop();
-                // var y = containmentEdges[edgeOrdinal * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
-                // edgeOrdinal = outHeads[nodeOrdinal] = outNext[edgeOrdinal];  // Pop.
+                /*
+                var y = containmentEdges[outNext[edgeOrdinal] * edgeFieldsCount + edgeToNodeOffset] / nodeFieldCount;
+
+                // Pop.
+                if (edgeOrdinal === outNext[edgeOrdinal]) {
+                    edgeOrdinal = undefined;
+                    outHeads[nodeOrdinal] = undefined;
+                    console.log("xxx");
+                    console.log(outHeads);
+                    console.log(outNext);
+                } else {
+                    console.log("yyy");
+                    console.log(edgeOrdinal);
+                    console.log(outNext[edgeOrdinal]);
+                    console.log(outNext[outNext[edgeOrdinal]]);
+                    console.log(outHeads);
+                    console.log(outNext);
+                    outNext[edgeOrdinal] = outNext[outNext[edgeOrdinal]];
+                    outNext[outNext[edgeOrdinal]] = undefined;
+                    console.log(outHeads);
+                    console.log(outNext);
+                    console.log("zzz");
+                }
+                */
+
+                console.log("ppp");
+                console.log(outHeads);
+                console.log(outNext);
+                console.log("qqq");
                 var v = this._find(y, contractParents, contractDicts, contractStack);
                 if (v !== nodeOrdinal) {
                     --total[v];
@@ -1517,7 +1575,7 @@ WebInspector.HeapSnapshot.prototype = {
                         //     dominatorsTree[same[v][w]] = nodeOrdinal;
                         dominatorsTree[v] = nodeOrdinal;
                         var cursor = sameNext[v];
-                        while (cursor != v) {
+                        while (cursor !== v) {
                             dominatorsTree[cursor] = nodeOrdinal;
                             cursor = sameNext[cursor];
                         }
@@ -1531,9 +1589,22 @@ WebInspector.HeapSnapshot.prototype = {
                     }
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _out[x] = _out[x].concat(_out[v]);
+                    //if (outHeads[x] /* undefined */ && outHeads[v] /* undefined */) {
+                    //    var tmpNode = outNext[outHeads[x]];
+                    //    outNext[outHeads[x]] = outNext[outHeads[v]];
+                    //    outNext[outHeads[v]] = tmpNode;
+                    //} else if (outHeads[v] /* undefined */) {
+                    //    outHeads[x] = outHeads[v];
+                    //}
                 }
             }
+
+            console.log("@@@");
+            console.log(outNext);
+            console.log("@@@");
+
             while (_in[nodeOrdinal].length > 0) {
+                console.log("&");
                 var z = _in[nodeOrdinal].pop();
                 var v = this._find(z, contractParents, contractDicts, contractStack);
                 while (v !== nodeOrdinal) {
@@ -1546,13 +1617,29 @@ WebInspector.HeapSnapshot.prototype = {
 
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
+
+                    var tmpNode;
+
                     _in[x] = _in[x].concat(_in[v]);
+
                     _out[x] = _out[x].concat(_out[v]);
+                    //if (outHeads[x] /* undefined */ && outHeads[v] /* undefined */) {
+                    //    var tmpNode = outNext[outHeads[x]];
+                    //    outNext[outHeads[x]] = outNext[outHeads[v]];
+                    //    outNext[outHeads[v]] = tmpNode;
+                    //} else if (outHeads[v] /* undefined */) {
+                    //    outHeads[x] = outHeads[v];
+                    //}
+
                     total[x] += total[v];
                     added[x] += added[v];
                     v = x;
                 }
             }
+            console.log("$$$");
+            console.log(outNext);
+            console.log("$$$");
+
             total[nodeOrdinal] -= added[nodeOrdinal];
             added[nodeOrdinal] = 0;
         }
