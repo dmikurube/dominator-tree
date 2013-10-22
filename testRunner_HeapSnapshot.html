@@ -70,18 +70,18 @@ function checkStatus(){
       */
     } else {
       console.log("NG");
-      console.log(snapshot._dominatorsTree);
-      /*
-      var str = "";
-      for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
-        str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree[i]];
-      console.log(str);
-      */
       console.log(snapshot._dominatorsTree_GD2);
       /*
       var str = "";
       for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
         str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree_GD2[i]];
+      console.log(str);
+      */
+      console.log(snapshot._dominatorsTree);
+      /*
+      var str = "";
+      for (var i = 0; i < snapshot._dominatorsTree.length; ++i)
+        str += " | " + chr[i] + "=>" + chr[snapshot._dominatorsTree[i]];
       console.log(str);
       */
     }
@@ -92,8 +92,8 @@ function checkStatus(){
 
 function loadText(){
   xmlHttp = new XMLHttpRequest();
-  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mini.heapsnapshot" + '?' + (new Date().getTime()), true);
   xmlHttp.send(null);
