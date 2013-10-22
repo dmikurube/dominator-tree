@@ -634,8 +634,16 @@ WebInspector.HeapSnapshot.prototype = {
         this._progress.updateStatus("Building postorder index\u2026");
         var result = this._buildPostOrderIndex();
         // Actually it is array that maps node ordinal number to dominator node ordinal number.
+        var total1 = new Uint32Array(this.nodeCount);
+        var total2 = new Uint32Array(this.nodeCount);
+        for (var i = 0; i < this.nodeCount; ++i) {
+            total1[i] = result.total[i];
+            total2[i] = result.total[i];
+        }
         this._progress.updateStatus("Building dominator tree GD\u2026");
-        this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, result.total, result.arcsHeads, result.arcsNext);
+        this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, total1, result.arcsHeads, result.arcsNext);
+        this._progress.updateStatus("Building dominator tree GD (slow)\u2026");
+        this._dominatorsTree_GD2_slow = this._buildDominatorTree_GD2_slow(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, total2, result.arcs);
         this._progress.updateStatus("Building dominator tree\u2026");
         this._dominatorsTree = this._buildDominatorTree(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex);
         this._progress.updateStatus("Calculating retained sizes\u2026");
@@ -746,6 +754,7 @@ WebInspector.HeapSnapshot.prototype = {
         delete this._nodeDistances;
         delete this._dominatorsTree;
         delete this._dominatorsTree_GD2;
+        delete this._dominatorsTree_GD2_slow;
     },
 
     _allNodes: function()
@@ -1184,6 +1193,7 @@ WebInspector.HeapSnapshot.prototype = {
         var painted = new Uint8Array(nodeCount);
         var parents = new Uint32Array(nodeCount);
         var total = new Uint32Array(nodeCount);
+        var arcs = new Array(nodeCount);
         var arcsHeads = new Array(nodeCount);
         var arcsNext = new Uint32Array(edgeCount);
         var nodesToVisitLength = 0;
@@ -1191,8 +1201,10 @@ WebInspector.HeapSnapshot.prototype = {
         var grey = 1;
         var black = 2;
 
-        for (var i = 0; i < nodeCount; ++i)
+        for (var i = 0; i < nodeCount; ++i) {
+            arcs[i] = [];
             arcsHeads[i] = edgeCount;
+        }
 
         nodesToVisit[nodesToVisitLength++] = rootNodeOrdinal;
         painted[rootNodeOrdinal] = grey;
@@ -1242,6 +1254,8 @@ WebInspector.HeapSnapshot.prototype = {
                     var edgeOrdinal = edgeIndex / edgeFieldsCount;
                     arcsNext[edgeOrdinal] = arcsHeads[nca];
                     arcsHeads[nca] = edgeOrdinal;
+                    arcs[nca].push(nodeOrdinal);
+                    arcs[nca].push(childNodeOrdinal);
                 }
                 this._union(parents[nodeOrdinal], nodeOrdinal, ncaParents, ncaRanks, ncaDicts, ncaStack);
                 nodeOrdinal2PostOrderIndex[nodeOrdinal] = postOrderIndex;
@@ -1271,6 +1285,7 @@ WebInspector.HeapSnapshot.prototype = {
             nodeOrdinal2PostOrderIndex: nodeOrdinal2PostOrderIndex,
             parents: parents,
             total: total,
+            arcs: arcs,
             arcsHeads: arcsHeads,
             arcsNext: arcsNext
         };
@@ -1622,6 +1637,114 @@ WebInspector.HeapSnapshot.prototype = {
                 }
             }
 
+            total[nodeOrdinal] -= added[nodeOrdinal];
+            added[nodeOrdinal] = 0;
+        }
+
+        // TODO(dmikurube): Make sure that the root's dominator is the root itself.
+        // It's the same behavior as the original _buildDominatorTree by Cooper's algorithm.
+        dominatorsTree[rootNodeOrdinal] = rootNodeOrdinal;
+
+        // TODO(dmikurube): Aligh output with the original buildDominatorTree.
+        // dominatorsTree[i] means the immediate dominator of i.
+        return dominatorsTree;
+    },
+
+    // The algorithm is based on the article (Algorithm GD, Version 2):
+    // W. Fraczak, L. Georgiadis, A. Miller and R. E. Tarjan "Finding Dominators via Disjoint Set Union"
+    // http://arxiv.org/pdf/1310.2118v1.pdf
+    /**
+     * @param {Array.<number>} postOrderIndex2NodeOrdinal
+     * @param {Array.<number>} nodeOrdinal2PostOrderIndex
+     * @param {Array.<number>} parents
+     * @param {Array.<number>} total
+     * @param {Array.<Array.<number>>} arcs
+     */
+    _buildDominatorTree_GD2_slow: function(postOrderIndex2NodeOrdinal, nodeOrdinal2PostOrderIndex, parents, total, arcs)
+    {
+        var nodeFieldCount = this._nodeFieldCount;
+        var nodes = this._nodes;
+        var nodeCount = this.nodeCount;
+        var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
+        var nodeEdgeCountOffset = this._nodeEdgeCountOffset;
+
+        var edgeFieldsCount = this._edgeFieldsCount;
+        var edgeToNodeOffset = this._edgeToNodeOffset;
+        var containmentEdges = this._containmentEdges;
+        var containmentEdgesLength = this._containmentEdges.length;
+        var rootPostOrderedIndex = nodeCount - 1;
+
+        var dominatorsTree = new Uint32Array(nodeCount);
+        var contractParents = new Uint32Array(nodeCount);
+        var contractStack = new Uint32Array(nodeCount);
+        var contractRanks = new Uint32Array(nodeCount);
+        var contractDicts = new Uint32Array(nodeCount);
+        var added = new Uint32Array(nodeCount);
+        var same = new Array(nodeCount);
+        var _out = new Array(nodeCount);
+        var _in = new Array(nodeCount);
+
+        var noEntry = nodeCount;
+
+        for (var i = 0; i < nodeCount; ++i)
+            dominatorsTree[i] = noEntry;
+        dominatorsTree[rootPostOrderedIndex] = rootPostOrderedIndex;
+
+        for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
+            // Bottom-up order
+            if (postOrderIndex % 10000 == 0)
+                this._progress.updateProgress("Building dominator tree. %d\%", postOrderIndex, nodeCount);
+            var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
+
+            // TODO(dmikurube): Can be initialized above at first.
+            _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
+            _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
+            this._makeSet(nodeOrdinal, contractParents, contractRanks, contractDicts);
+            added[nodeOrdinal] = 0;
+            same[nodeOrdinal] = [ nodeOrdinal ];  // TODO(dmikurube): To be a kind of linked list for speed.
+
+            for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
+                var x = arcs[nodeOrdinal][arcsIndex];
+                var y = arcs[nodeOrdinal][arcsIndex + 1];
+                var findX = this._find(x, contractParents, contractDicts, contractStack);
+                var findY = this._find(y, contractParents, contractDicts, contractStack);
+                _out[findX].push(y);
+                _in[findY].push(x);
+                ++added[findY];
+            }
+            while (_out[nodeOrdinal].length > 0) {
+                var y = _out[nodeOrdinal].pop();
+                var v = this._find(y, contractParents, contractDicts, contractStack);
+                if (v !== nodeOrdinal) {
+                    --total[v];
+                    --added[v];
+                }
+                if (total[v] === 0) {
+                    var x = this._find(parents[v], contractParents, contractDicts, contractStack);
+                    if (nodeOrdinal === x) {
+                        for (var w = 0; w < same[v].length; ++w)
+                            dominatorsTree[same[v][w]] = nodeOrdinal;
+                    } else {
+                        same[x] = same[x].concat(same[v]);
+                    }
+                    this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
+                    _out[x] = _out[x].concat(_out[v]);
+                }
+            }
+            while (_in[nodeOrdinal].length > 0) {
+                var z = _in[nodeOrdinal].pop();
+                var v = this._find(z, contractParents, contractDicts, contractStack);
+                while (v !== nodeOrdinal) {
+                    same[nodeOrdinal] = same[nodeOrdinal].concat(same[v]);
+                    var x = this._find(parents[v], contractParents, contractDicts, contractStack);
+                    this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
+                    _in[x] = _in[x].concat(_in[v]);
+                    _out[x] = _out[x].concat(_out[v]);
+                    total[x] += total[v];
+                    added[x] += added[v];
+                    v = x;
+                }
+            }
             total[nodeOrdinal] -= added[nodeOrdinal];
             added[nodeOrdinal] = 0;
         }
