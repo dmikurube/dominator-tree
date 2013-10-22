@@ -83,14 +83,17 @@ function checkStatus(){
     }
 
     // Check the results.
-    if (matchSlow) {
-      console.log("Slow - OK");
-      console.log(snapshot._dominatorsTree);
-    } else {
-      console.log("Slow - NG");
-      console.log(snapshot._dominatorsTree_GD2_slow);
-      console.log(snapshot._dominatorsTree);
+    if (snapshot._dominatorsTree_GD2_slow.length > 0) {
+      if (matchSlow) {
+        console.log("Slow - OK");
+        console.log(snapshot._dominatorsTree);
+      } else {
+        console.log("Slow - NG");
+        console.log(snapshot._dominatorsTree_GD2_slow);
+        console.log(snapshot._dominatorsTree);
+      }
     }
+
     if (matchFast) {
       console.log("Fast - OK");
       console.log(snapshot._dominatorsTree);
@@ -100,14 +103,17 @@ function checkStatus(){
       console.log(snapshot._dominatorsTree);
     }
 
-    if (matchSlowFast) {
-      console.log("FYI: Slow === Fast");
-      console.log(snapshot._dominatorsTree_GD2);
-    } else {
-      console.log("FYI: Slow !== Fast");
-      console.log(snapshot._dominatorsTree_GD2);
-      console.log(snapshot._dominatorsTree_GD2_slow);
+    if (snapshot._dominatorsTree_GD2_slow.length > 0) {
+      if (matchSlowFast) {
+        console.log("FYI: Slow === Fast");
+        console.log(snapshot._dominatorsTree_GD2);
+      } else {
+        console.log("FYI: Slow !== Fast");
+        console.log(snapshot._dominatorsTree_GD2);
+        console.log(snapshot._dominatorsTree_GD2_slow);
+      }
     }
+
   } else {
     setTimeout(checkStatus, 1000);
   }
@@ -115,8 +121,8 @@ function checkStatus(){
 
 function loadText(){
   xmlHttp = new XMLHttpRequest();
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
-  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/small-raw.heapsnapshot" + '?' + (new Date().getTime()), true);
+  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/small-raw.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
 //  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mini.heapsnapshot" + '?' + (new Date().getTime()), true);

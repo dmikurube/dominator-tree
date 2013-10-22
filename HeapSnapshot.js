@@ -643,7 +643,12 @@ WebInspector.HeapSnapshot.prototype = {
         this._progress.updateStatus("Building dominator tree GD\u2026");
         this._dominatorsTree_GD2 = this._buildDominatorTree_GD2(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, total1, result.arcsHeads, result.arcsNext);
         this._progress.updateStatus("Building dominator tree GD (slow)\u2026");
-        this._dominatorsTree_GD2_slow = this._buildDominatorTree_GD2_slow(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, total2, result.arcs);
+        if (result.postOrderIndex2NodeOrdinal.length > 40000) {
+            this._progress.updateStatus("Too many nodes. Give up slow version");
+            this._dominatorsTree_GD2_slow = [];
+        } else {
+            this._dominatorsTree_GD2_slow = this._buildDominatorTree_GD2_slow(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex, result.parents, total2, result.arcs);
+        }
         this._progress.updateStatus("Building dominator tree\u2026");
         this._dominatorsTree = this._buildDominatorTree(result.postOrderIndex2NodeOrdinal, result.nodeOrdinal2PostOrderIndex);
         this._progress.updateStatus("Calculating retained sizes\u2026");
