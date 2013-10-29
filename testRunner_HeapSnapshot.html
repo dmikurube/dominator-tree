@@ -121,11 +121,11 @@ function checkStatus(){
 
 function loadText(){
   xmlHttp = new XMLHttpRequest();
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
-  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/small-raw.heapsnapshot" + '?' + (new Date().getTime()), true);
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
-//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominator/mini.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominators/doublelink-30000.heapsnapshot" + '?' + (new Date().getTime()), true);
+  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominators/small-raw.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominators/sample.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominators/mozilla.heapsnapshot" + '?' + (new Date().getTime()), true);
+//  xmlHttp.open("GET", "file:////usr/local/google/home/dmikurube/work/dominators/mini.heapsnapshot" + '?' + (new Date().getTime()), true);
   xmlHttp.send(null);
   setTimeout(checkStatus, 1000);
 }
