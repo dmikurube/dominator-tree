@@ -1110,35 +1110,23 @@ WebInspector.HeapSnapshot.prototype = {
     },
 
     // This union always must merge to x, the first argument.
-    // We don't use union by rank for now. (Union by rank is commented out.)
-    //
-    // TODO(dmikurube): Use a name dictionary to lookup x while using union by rank.
-    // ...in our case it is important that the unite(x,y) operation sets x as
-    // the name of the new set. The reason is that we want find(x) to return a
-    // vertex that is an ancestor of x in the tree.  (The same is required by
-    // the Aho et al nearest common ancestors algorithm.) A simple way to use
-    // an existing implementation of a set union data structure is to use an
-    // array to map the root of the set to the name of the set. (See e.g. the
-    // algorithms textbook of Cormen, Leiserson, Rivest and Stein.)
     _union: function(xIndex, yIndex, parents, ranks, dict, stack)
     {
-        var xRoot = this._find(xIndex, parents, dict, stack);
-        var yRoot = this._find(yIndex, parents, dict, stack);
-        parents[yRoot] = xRoot;
-        /*
+        var xRoot = this._find_intl(xIndex, parents, stack);
+        var yRoot = this._find_intl(yIndex, parents, stack);
+
         if (ranks[xRoot] > ranks[yRoot]) {
             parents[yRoot] = xRoot;
         } else if (ranks[xRoot] < ranks[yRoot]) {
-            dict[yRoot] = xRoot; // TODO(dmikurube): Not working. Fix it.
+            dict[yRoot] = dict[xRoot];
             parents[xRoot] = yRoot;
         } else if (xRoot !== yRoot) {
             parents[yRoot] = xRoot;
             ranks[xRoot] = ranks[xRoot] + 1;
         }
-        */
     },
 
-    _find: function(index, parents, dict, stack)
+    _find_intl: function(index, parents, stack)
     {
         var height = 0;
 
@@ -1159,13 +1147,12 @@ WebInspector.HeapSnapshot.prototype = {
             --height;
         }
 
-        /*
-        if (dict[top])
-            return dict[top];
-        else
-            return top;
-        */
         return top;
+    },
+
+    _find: function(index, parents, dict, stack)
+    {
+        return dict[this._find_intl(index, parents, stack)];
     },
 
     _buildPostOrderIndex: function()
