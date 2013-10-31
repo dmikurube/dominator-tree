@@ -1667,7 +1667,7 @@ WebInspector.HeapSnapshot.prototype = {
 
         for (var i = 0; i < nodeCount; ++i)
             dominatorsTree[i] = noEntry;
-        dominatorsTree[rootPostOrderedIndex] = rootPostOrderedIndex;
+        // dominatorsTree[rootPostOrderedIndex] = rootPostOrderedIndex;
 
         for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
             // Bottom-up order
@@ -1676,15 +1676,15 @@ WebInspector.HeapSnapshot.prototype = {
             var nodeOrdinal = postOrderIndex2NodeOrdinal[postOrderIndex];
 
             // TODO(dmikurube): Can be initialized above at first.
-            _out[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
-            _in[nodeOrdinal] = [];  // TODO(dmikurube): To be a kind of linked list for speed.
+            _out[nodeOrdinal] = [];
+            _in[nodeOrdinal] = [];
             this._makeSet(nodeOrdinal, contractParents, contractRanks, contractDicts);
             added[nodeOrdinal] = 0;
-            same[nodeOrdinal] = [ nodeOrdinal ];  // TODO(dmikurube): To be a kind of linked list for speed.
+            same[nodeOrdinal] = [ nodeOrdinal ];
 
-            for (var arcsIndex = 0; arcsIndex < arcs[nodeOrdinal].length; arcsIndex += 2) {
-                var x = arcs[nodeOrdinal][arcsIndex];
-                var y = arcs[nodeOrdinal][arcsIndex + 1];
+            while (arcs[nodeOrdinal].length > 0) {
+                var x = arcs[nodeOrdinal].shift();
+                var y = arcs[nodeOrdinal].shift();
                 var findX = this._find(x, contractParents, contractDicts, contractStack);
                 var findY = this._find(y, contractParents, contractDicts, contractStack);
                 _out[findX].push(y);
@@ -1701,11 +1701,14 @@ WebInspector.HeapSnapshot.prototype = {
                 if (total[v] === 0) {
                     var x = this._find(parents[v], contractParents, contractDicts, contractStack);
                     if (nodeOrdinal === x) {
-                        for (var w = 0; w < same[v].length; ++w)
-                            dominatorsTree[same[v][w]] = nodeOrdinal;
+                        for (var index = 0; index < same[v].length; ++index) {
+                            var w = same[v][index];
+                            dominatorsTree[w] = nodeOrdinal;
+                        }
                     } else {
                         same[x] = same[x].concat(same[v]);
                     }
+                    // ??
                     this._union(parents[v], v, contractParents, contractRanks, contractDicts, contractStack);
                     _out[x] = _out[x].concat(_out[v]);
                 }
@@ -1731,6 +1734,12 @@ WebInspector.HeapSnapshot.prototype = {
         // TODO(dmikurube): Make sure that the root's dominator is the root itself.
         // It's the same behavior as the original _buildDominatorTree by Cooper's algorithm.
         dominatorsTree[rootNodeOrdinal] = rootNodeOrdinal;
+
+        for (var postOrderIndex = 0; postOrderIndex < nodeCount; ++postOrderIndex) {
+            if (dominatorsTree[postOrderIndex] === noEntry) {
+                dominatorsTree[postOrderIndex] = 0;
+            }
+        }
 
         // TODO(dmikurube): Aligh output with the original buildDominatorTree.
         // dominatorsTree[i] means the immediate dominator of i.
