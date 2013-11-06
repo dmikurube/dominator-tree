@@ -80,6 +80,12 @@ def prepare_GD2(root, edges, parents, lca):
   return total, arcs
 
 
+def GD2(root, edges, parents, postorder, total, arcs):
+  for node_postorder in range(len(parents) + 1):  # Iterate all nodes.
+    node = postorder[node_postorder]
+    pass
+
+
 def main(argv):
   with open('edges.json', 'r') as edges_f:
     edges = json.load(edges_f, object_pairs_hook=OrderedDict)['edges']
@@ -105,6 +111,8 @@ def main(argv):
   lca = LCA(parents)
 
   total, arcs = prepare_GD2(roots[0], edges, parents, lca)
+
+  dominators = GD2(root, edges, parents, postorder, total, arcs)
 
   return 0
 
